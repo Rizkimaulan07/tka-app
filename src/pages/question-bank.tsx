@@ -98,10 +98,11 @@ function QuestionFormDialog({
   open: boolean
   initial: Question | null
   onClose: () => void
-  onSave: (draft: QuestionDraft) => void
+  onSave: (draft: QuestionDraft) => Promise<void>
 }) {
   const [form, setForm] = useState<FormState>(blankForm)
   const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -173,7 +174,7 @@ function QuestionFormDialog({
     })
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.prompt.trim()) {
       setError("Pertanyaan wajib diisi.")
       return
@@ -199,20 +200,33 @@ function QuestionFormDialog({
       return
     }
 
-    onSave({
-      subjectId: form.subjectId,
-      topic: form.topic.trim(),
-      difficulty: form.difficulty,
-      type: form.type,
-      prompt: form.prompt.trim(),
-      options: form.options.map((option) => ({
-        ...option,
-        text: option.text.trim(),
-      })),
-      correctOptionIds: form.correctOptionIds,
-      explanation: form.explanation.trim(),
-    })
-    onClose()
+    setSaving(true)
+    setError("")
+
+    try {
+      await onSave({
+        subjectId: form.subjectId,
+        topic: form.topic.trim(),
+        difficulty: form.difficulty,
+        type: form.type,
+        prompt: form.prompt.trim(),
+        options: form.options.map((option) => ({
+          ...option,
+          text: option.text.trim(),
+        })),
+        correctOptionIds: form.correctOptionIds,
+        explanation: form.explanation.trim(),
+      })
+      onClose()
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Soal gagal disimpan. Coba lagi.",
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -400,11 +414,15 @@ function QuestionFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
             Batal
           </Button>
-          <Button onClick={handleSubmit}>
-            {initial ? "Simpan perubahan" : "Simpan soal"}
+          <Button onClick={() => void handleSubmit()} disabled={saving}>
+            {saving
+              ? "Menyimpan..."
+              : initial
+                ? "Simpan perubahan"
+                : "Simpan soal"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -429,6 +447,7 @@ function QuestionBankContent() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Question | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -459,22 +478,34 @@ function QuestionBankContent() {
     [questions],
   )
 
-  const handleSave = (draft: QuestionDraft) => {
+  const handleSave = async (draft: QuestionDraft) => {
     if (editing) {
-      updateQuestion({ ...draft, id: editing.id })
+      await updateQuestion({ ...draft, id: editing.id })
       toast.success("Soal berhasil diperbarui.")
     } else {
-      addQuestion(draft)
+      await addQuestion(draft)
       toast.success("Soal baru berhasil ditambahkan ke bank soal.")
     }
     setEditing(null)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return
-    deleteQuestion(deleteTarget.id)
-    toast.success("Soal berhasil dihapus dari bank soal.")
-    setDeleteTarget(null)
+    setDeleting(true)
+
+    try {
+      await deleteQuestion(deleteTarget.id)
+      toast.success("Soal berhasil dihapus dari bank soal.")
+      setDeleteTarget(null)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Soal gagal dihapus. Coba lagi.",
+      )
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleExport = () => {
@@ -869,12 +900,20 @@ function QuestionBankContent() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
               Batal
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+            >
               <Trash2 className="size-4" />
-              Hapus soal
+              {deleting ? "Menghapus..." : "Hapus soal"}
             </Button>
           </DialogFooter>
         </DialogContent>

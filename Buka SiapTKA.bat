@@ -16,8 +16,28 @@ if not exist node_modules (
 )
 
 echo.
-echo Menjalankan SiapTKA dan membuka browser...
+echo [1/3] Menyiapkan PostgreSQL lokal...
+call npm run db:start
+if errorlevel 1 (
+  echo.
+  echo Database gagal dijalankan. Periksa pesan di atas.
+  pause
+  exit /b 1
+)
+
+echo.
+echo [2/3] Menyiapkan tabel dan data awal...
+call npm run db:setup
+if errorlevel 1 (
+  echo.
+  echo Penyiapan database gagal. Periksa pesan di atas.
+  pause
+  exit /b 1
+)
+
+echo.
+echo [3/3] Menjalankan web + API dan membuka browser...
 echo Tutup jendela ini untuk menghentikan aplikasi.
 echo.
-call npm run dev -- --open
+call npm run dev:open
 pause

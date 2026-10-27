@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { HashRouter, Route, Routes, useLocation } from "react-router-dom"
 import { Toaster } from "sonner"
+import { DatabaseGate } from "@/components/database-gate"
 import { AppShell } from "@/components/layout/app-shell"
 import { AppProvider } from "@/context/app-context"
 import { useApp } from "@/context/use-app"
@@ -45,23 +46,25 @@ export default function App() {
   return (
     <AppProvider>
       <HashRouter>
-        <ScrollToTop />
-        <Routes>
-          <Route path="/ujian/:examId" element={<ExamRoomPage />} />
-          <Route element={<AppShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="tryout" element={<ExamListPage />} />
-            <Route path="tryout/:examId" element={<ExamBriefPage />} />
-            <Route path="hasil" element={<ResultsPage />} />
-            <Route path="hasil/:attemptId" element={<ResultDetailPage />} />
-            <Route path="analisis" element={<AnalyticsPage />} />
-            <Route path="bank-soal" element={<QuestionBankPage />} />
-            <Route path="rekap" element={<RekapPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
+        <DatabaseGate>
+          <ScrollToTop />
+          <Routes>
+            <Route path="/ujian/:examId" element={<ExamRoomPage />} />
+            <Route element={<AppShell />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="tryout" element={<ExamListPage />} />
+              <Route path="tryout/:examId" element={<ExamBriefPage />} />
+              <Route path="hasil" element={<ResultsPage />} />
+              <Route path="hasil/:attemptId" element={<ResultDetailPage />} />
+              <Route path="analisis" element={<AnalyticsPage />} />
+              <Route path="bank-soal" element={<QuestionBankPage />} />
+              <Route path="rekap" element={<RekapPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+          <AppToaster />
+        </DatabaseGate>
       </HashRouter>
-      <AppToaster />
     </AppProvider>
   )
 }

@@ -26,7 +26,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { useApp } from "@/context/use-app"
-import { CLASS_PERFORMANCE, STUDENT_RECAPS } from "@/data/seed"
 import { cn, downloadCSV, initials } from "@/lib/utils"
 import type { StudentRecap } from "@/types"
 
@@ -37,19 +36,20 @@ const statusVariant = {
 } as const
 
 function RekapContent() {
+  const { recaps: students, classes: classPerformance } = useApp()
   const [search, setSearch] = useState("")
   const [classFilter, setClassFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState<
     "semua" | StudentRecap["status"]
   >("semua")
 
-  const completed = STUDENT_RECAPS.filter(
+  const completed = students.filter(
     (student) => student.status === "Selesai",
   )
-  const inProgress = STUDENT_RECAPS.filter(
+  const inProgress = students.filter(
     (student) => student.status === "Mengerjakan",
   )
-  const notStarted = STUDENT_RECAPS.filter(
+  const notStarted = students.filter(
     (student) => student.status === "Belum mulai",
   )
   const averageScore = Math.round(
@@ -57,11 +57,11 @@ function RekapContent() {
       Math.max(1, completed.length),
   )
   const participation = Math.round(
-    (completed.length / STUDENT_RECAPS.length) * 100,
+    (completed.length / Math.max(1, students.length)) * 100,
   )
-  const classes = [...new Set(STUDENT_RECAPS.map((student) => student.className))]
+  const classes = [...new Set(students.map((student) => student.className))]
 
-  const filtered = STUDENT_RECAPS.filter((student) => {
+  const filtered = students.filter((student) => {
     const query = search.trim().toLowerCase()
     const matchesQuery =
       query.length === 0 ||
@@ -74,7 +74,7 @@ function RekapContent() {
     return matchesQuery && matchesClass && matchesStatus
   })
 
-  const unfinished = STUDENT_RECAPS.filter(
+  const unfinished = students.filter(
     (student) => student.status !== "Selesai",
   )
 
@@ -116,7 +116,7 @@ function RekapContent() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Peserta ujian"
-          value={String(STUDENT_RECAPS.length)}
+          value={String(students.length)}
           hint={`${classes.length} kelas`}
           icon={<Users className="size-5" />}
         />
@@ -368,7 +368,7 @@ function RekapContent() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 pt-2">
-              {CLASS_PERFORMANCE.map((item) => (
+              {classPerformance.map((item) => (
                 <div key={item.className}>
                   <div className="flex items-center justify-between gap-2">
                     <div>

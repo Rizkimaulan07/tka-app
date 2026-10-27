@@ -38,37 +38,30 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { useApp } from "@/context/use-app"
-import {
-  CLASS_PERFORMANCE,
-  RECENT_ACTIVITIES,
-  STUDENT_RECAPS,
-} from "@/data/seed"
+import { RECENT_ACTIVITIES } from "@/data/seed"
 import { cn, formatNumber, initials } from "@/lib/utils"
 
 const classColors = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981"]
 
 export function TeacherDashboard() {
-  const { questions } = useApp()
+  const { questions, recaps, classes } = useApp()
 
-  const totalStudents = CLASS_PERFORMANCE.reduce(
+  const totalStudents = classes.reduce(
     (sum, item) => sum + item.students,
     0,
   )
   const averageScore = Math.round(
-    CLASS_PERFORMANCE.reduce(
-      (sum, item) => sum + item.average * item.students,
-      0,
-    ) / totalStudents,
+    classes.reduce((sum, item) => sum + item.average * item.students, 0) /
+      Math.max(1, totalStudents),
   )
-  const topStudents = STUDENT_RECAPS.filter(
-    (student) => student.status === "Selesai",
-  )
+  const topStudents = recaps
+    .filter((student) => student.status === "Selesai")
     .sort((a, b) => b.score - a.score)
     .slice(0, 4)
-  const needAttention = STUDENT_RECAPS.filter(
+  const needAttention = recaps.filter(
     (student) => student.status === "Selesai" && student.score < 75,
   )
-  const chartData = CLASS_PERFORMANCE.map((item) => ({
+  const chartData = classes.map((item) => ({
     name: item.className.replace("XII ", ""),
     full: item.className,
     average: item.average,
@@ -103,7 +96,7 @@ export function TeacherDashboard() {
         <StatCard
           label="Siswa aktif"
           value={formatNumber(totalStudents)}
-          hint="4 kelas binaan"
+          hint={`${classes.length} kelas binaan`}
           icon={<Users className="size-5" />}
         />
         <StatCard
@@ -291,7 +284,7 @@ export function TeacherDashboard() {
               </ResponsiveContainer>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {CLASS_PERFORMANCE.map((item, index) => (
+              {classes.map((item, index) => (
                 <div
                   key={item.className}
                   className="rounded-xl border border-border/70 bg-muted/30 px-2.5 py-2"

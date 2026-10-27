@@ -121,7 +121,9 @@ function ExamRoomContent({ exam }: { exam: Exam }) {
   const [exitOpen, setExitOpen] = useState(false)
   const [submitOpen, setSubmitOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const submittedRef = useRef(false)
+  const submittingRef = useRef(false)
   const submitRef = useRef<(auto?: boolean) => void>(() => undefined)
 
   const examQuestions = useMemo(
@@ -173,43 +175,57 @@ function ExamRoomContent({ exam }: { exam: Exam }) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [])
 
-  const handleSubmit = (auto = false) => {
-    if (submittedRef.current) return
-    submittedRef.current = true
+  const handleSubmit = async (auto = false) => {
+    if (submittedRef.current || submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
 
-    const result = gradeExam(exam, questions, session.answers)
-    const finishedAt = new Date()
-    const attempt: Attempt = {
-      id: `attempt-${Date.now()}`,
-      examId: exam.id,
-      examTitle: exam.title,
-      subjectIds: exam.subjectIds,
-      startedAt: new Date(session.startedAt).toISOString(),
-      finishedAt: finishedAt.toISOString(),
-      answers: session.answers,
-      flagged: session.flagged,
-      score: result.score,
-      correctCount: result.correctCount,
-      total: result.total,
-      timeSpentSeconds: Math.max(
-        1,
-        Math.min(
-          exam.durationMinutes * 60,
-          Math.round((finishedAt.getTime() - session.startedAt) / 1000),
+    try {
+      const result = gradeExam(exam, questions, session.answers)
+      const finishedAt = new Date()
+      const attempt: Attempt = {
+        id: `attempt-${Date.now()}`,
+        examId: exam.id,
+        examTitle: exam.title,
+        subjectIds: exam.subjectIds,
+        startedAt: new Date(session.startedAt).toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        answers: session.answers,
+        flagged: session.flagged,
+        score: result.score,
+        correctCount: result.correctCount,
+        total: result.total,
+        timeSpentSeconds: Math.max(
+          1,
+          Math.min(
+            exam.durationMinutes * 60,
+            Math.round((finishedAt.getTime() - session.startedAt) / 1000),
+          ),
         ),
-      ),
-    }
+      }
 
-    clearSession(exam.id)
-    addAttempt(attempt)
-    setSubmitOpen(false)
-    setExitOpen(false)
-    navigate(`/hasil/${attempt.id}`, { replace: true })
-    toast.success(
-      auto
-        ? "Waktu habis. Jawabanmu dikumpulkan otomatis."
-        : "Jawaban berhasil dikumpulkan. Lihat hasilmu!",
-    )
+      await addAttempt(attempt)
+
+      submittedRef.current = true
+      clearSession(exam.id)
+      setSubmitOpen(false)
+      setExitOpen(false)
+      navigate(`/hasil/${attempt.id}`, { replace: true })
+      toast.success(
+        auto
+          ? "Waktu habis. Jawabanmu dikumpulkan otomatis."
+          : "Jawaban berhasil dikumpulkan. Lihat hasilmu!",
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Jawaban gagal disimpan. Periksa koneksi database lalu coba lagi.",
+      )
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
 
   submitRef.current = handleSubmit
@@ -665,15 +681,20 @@ function ExamRoomContent({ exam }: { exam: Exam }) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSubmitOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setSubmitOpen(false)}
+              disabled={submitting}
+            >
               Periksa lagi
             </Button>
             <Button
               className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => handleSubmit(false)}
+              onClick={() => void handleSubmit(false)}
+              disabled={submitting}
             >
               <Send className="size-4" />
-              Kumpulkan jawaban
+              {submitting ? "Menyimpan..." : "Kumpulkan jawaban"}
             </Button>
           </DialogFooter>
         </DialogContent>

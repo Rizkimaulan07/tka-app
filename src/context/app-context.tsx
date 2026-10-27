@@ -6,19 +6,25 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { QUESTION_BANK } from "@/data/questions"
+import { PROFILES, ROLE_STORAGE_KEY, THEME_STORAGE_KEY } from "@/data/seed"
 import {
-  ATTEMPTS_STORAGE_KEY,
-  PROFILES,
-  QUESTIONS_STORAGE_KEY,
-  ROLE_STORAGE_KEY,
-  SEED_ATTEMPTS,
-  THEME_STORAGE_KEY,
-} from "@/data/seed"
-import type { Attempt, Question, Role } from "@/types"
+  createAttempt as createAttemptApi,
+  createQuestion as createQuestionApi,
+  deleteQuestion as deleteQuestionApi,
+  fetchBootstrap,
+  updateQuestion as updateQuestionApi,
+} from "@/lib/api"
+import type {
+  Attempt,
+  ClassPerformance,
+  Question,
+  Role,
+  StudentRecap,
+} from "@/types"
 
 export type Theme = "light" | "dark"
 export type QuestionDraft = Omit<Question, "id">
+export type LoadStatus = "loading" | "ready" | "error"
 
 export interface AppContextValue {
   role: Role
@@ -28,10 +34,15 @@ export interface AppContextValue {
   profile: (typeof PROFILES)[Role]
   questions: Question[]
   attempts: Attempt[]
-  addQuestion: (question: QuestionDraft) => Question
-  updateQuestion: (question: Question) => void
-  deleteQuestion: (questionId: string) => void
-  addAttempt: (attempt: Attempt) => void
+  recaps: StudentRecap[]
+  classes: ClassPerformance[]
+  status: LoadStatus
+  error: string | null
+  refresh: () => void
+  addQuestion: (question: QuestionDraft) => Promise<Question>
+  updateQuestion: (question: Question) => Promise<void>
+  deleteQuestion: (questionId: string) => Promise<void>
+  addAttempt: (attempt: Attempt) => Promise<void>
 }
 
 export const AppContext = createContext<AppContextValue | null>(null)
@@ -54,6 +65,12 @@ function writeStored(key: string, value: unknown) {
   }
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Terjadi kesalahan yang tidak diketahui."
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(() =>
     readStored<Role>(ROLE_STORAGE_KEY, "siswa"),
@@ -61,12 +78,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() =>
     readStored<Theme>(THEME_STORAGE_KEY, "light"),
   )
-  const [questions, setQuestions] = useState<Question[]>(() =>
-    readStored<Question[]>(QUESTIONS_STORAGE_KEY, QUESTION_BANK),
-  )
-  const [attempts, setAttempts] = useState<Attempt[]>(() =>
-    readStored<Attempt[]>(ATTEMPTS_STORAGE_KEY, SEED_ATTEMPTS),
-  )
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [attempts, setAttempts] = useState<Attempt[]>([])
+  const [recaps, setRecaps] = useState<StudentRecap[]>([])
+  const [classes, setClasses] = useState<ClassPerformance[]>([])
+  const [status, setStatus] = useState<LoadStatus>("loading")
+  const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
     const root = document.documentElement
@@ -76,12 +94,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [theme])
 
   useEffect(() => {
-    writeStored(QUESTIONS_STORAGE_KEY, questions)
-  }, [questions])
+    let active = true
 
-  useEffect(() => {
-    writeStored(ATTEMPTS_STORAGE_KEY, attempts)
-  }, [attempts])
+    setStatus("loading")
+    setError(null)
+
+    fetchBootstrap()
+      .then((data) => {
+        if (!active) return
+        setQuestions(data.questions)
+        setAttempts(data.attempts)
+        setRecaps(data.recaps)
+        setClasses(data.classes)
+        setStatus("ready")
+      })
+      .catch((loadError: unknown) => {
+        if (!active) return
+        setError(errorMessage(loadError))
+        setStatus("error")
+      })
+
+    return () => {
+      active = false
+    }
+  }, [reloadToken])
+
+  const refresh = useCallback(() => {
+    setReloadToken((current) => current + 1)
+  }, [])
 
   const setRole = useCallback((nextRole: Role) => {
     setRoleState(nextRole)
@@ -92,29 +132,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTheme((current) => (current === "light" ? "dark" : "light"))
   }, [])
 
-  const addQuestion = useCallback((draft: QuestionDraft) => {
-    const question: Question = {
-      ...draft,
-      id: `q-custom-${Date.now()}`,
-    }
-    setQuestions((current) => [question, ...current])
-    return question
+  const addQuestion = useCallback(async (draft: QuestionDraft) => {
+    const created = await createQuestionApi(draft)
+    setQuestions((current) => [created, ...current])
+    return created
   }, [])
 
-  const updateQuestion = useCallback((question: Question) => {
+  const updateQuestion = useCallback(async (question: Question) => {
+    const updated = await updateQuestionApi(question)
     setQuestions((current) =>
-      current.map((item) => (item.id === question.id ? question : item)),
+      current.map((item) => (item.id === updated.id ? updated : item)),
     )
   }, [])
 
-  const deleteQuestion = useCallback((questionId: string) => {
+  const deleteQuestion = useCallback(async (questionId: string) => {
+    await deleteQuestionApi(questionId)
     setQuestions((current) =>
       current.filter((question) => question.id !== questionId),
     )
   }, [])
 
-  const addAttempt = useCallback((attempt: Attempt) => {
-    setAttempts((current) => [attempt, ...current])
+  const addAttempt = useCallback(async (attempt: Attempt) => {
+    const saved = await createAttemptApi(attempt)
+    setAttempts((current) => [
+      saved,
+      ...current.filter((item) => item.id !== saved.id),
+    ])
   }, [])
 
   const value = useMemo<AppContextValue>(
@@ -126,6 +169,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       profile: PROFILES[role],
       questions,
       attempts,
+      recaps,
+      classes,
+      status,
+      error,
+      refresh,
       addQuestion,
       updateQuestion,
       deleteQuestion,
@@ -138,6 +186,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleTheme,
       questions,
       attempts,
+      recaps,
+      classes,
+      status,
+      error,
+      refresh,
       addQuestion,
       updateQuestion,
       deleteQuestion,
