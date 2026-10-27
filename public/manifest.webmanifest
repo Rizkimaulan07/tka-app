@@ -1,0 +1,18 @@
+{
+  "name": "SiapTKA — Latihan & Tryout TKA",
+  "short_name": "SiapTKA",
+  "description": "Latihan, tryout, dan analisis kemampuan untuk Tes Kemampuan Akademik.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f7fc",
+  "theme_color": "#5b4bdb",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
